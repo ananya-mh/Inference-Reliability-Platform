@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+
+# Gradle
+.gradle/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Java
+*.class
+hs_err_pid*
+
+# Logs
+*.log
+
+# Project
+CLAUDE.md
