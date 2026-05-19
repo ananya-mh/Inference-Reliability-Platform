@@ -3,6 +3,17 @@
 **Status:** Complete  
 **Date:** 2026-05-18
 
+## What I did
+
+1. Scaffolded all three services in parallel using sub-agents — gateway (TypeScript/Express), inference (Java 21/Spring Boot), collector (Python/FastAPI).
+2. Reviewed every generated file for correctness: strict TypeScript, no `any` types, proper generics in Java, type hints in Python, consistent `{ data, error, timestamp }` envelope across all services.
+3. Wrote Dockerfiles for each service — multi-stage builds, non-root users, slim base images.
+4. Wrote `docker-compose.yml` wiring all three on a shared bridge network.
+5. Built all images with `docker compose build`. Gateway and collector built quickly; inference took ~2 min due to Gradle dependency resolution.
+6. Ran `docker compose up -d`, hit all health endpoints, tested `/predict`, `/metrics`, and chaos toggle endpoints.
+7. Attempted to shrink the inference image from 442MB (jammy JRE) → tried Alpine JRE (324MB) → tried distroless (300MB). The distroless pull triggered a Docker Desktop WSL VHDX crash. Reverted to Alpine JRE at 324MB — acceptable given JRE baseline.
+8. After Docker recovered, rebuilt inference with Alpine, re-verified all three health endpoints returning 200.
+
 ## What was built
 
 Three microservices running via Docker Compose with health endpoints:

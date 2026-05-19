@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: inference-platform-ingress
+  labels:
+    app: inference-platform
+    layer: "1"
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /api(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: gateway
+                port:
+                  number: 3000
+          - path: /inference(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: inference
+                port:
+                  number: 8080
