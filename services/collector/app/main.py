@@ -9,10 +9,12 @@ from datetime import datetime, timezone
 from typing import Any
 
 import httpx
+import redis
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.consumer import MetricsConsumer
+from app.detector import IncidentDetector
 from app.publisher import MetricsPublisher
 from app.scraper import scrape_service
 
@@ -24,6 +26,7 @@ DATABASE_URL = os.environ.get(
     "DATABASE_URL",
     "postgresql://postgres:postgres@postgresql:5432/inference_platform",
 )
+REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379")
 SCRAPE_INTERVAL_SECONDS = int(os.environ.get("SCRAPE_INTERVAL_SECONDS", "10"))
 
 _start_time = time.monotonic()
@@ -54,6 +57,8 @@ app = FastAPI(title="Collector Service", version="0.2.0")
 _http_client: httpx.AsyncClient | None = None
 _publisher: MetricsPublisher | None = None
 _consumer: MetricsConsumer | None = None
+_redis_client: redis.Redis | None = None
+_detector: IncidentDetector = IncidentDetector()
 _consumer_thread: threading.Thread | None = None
 _scraper_task: asyncio.Task | None = None  # type: ignore[type-arg]
 _last_scrape_time: str | None = None
@@ -66,6 +71,35 @@ def envelope(data: Any = None, error: str | None = None) -> dict[str, Any]:
         "error": error,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+
+
+def _write_service_state_to_redis(result: dict[str, Any]) -> None:
+    if _redis_client is None:
+        return
+    name = result["service_name"]
+    try:
+        _redis_client.set(f"service:{name}:status", result["status"])
+        _redis_client.set(
+            f"service:{name}:p95",
+            str(result["latency_p95_ms"]) if result["latency_p95_ms"] is not None else "0",
+        )
+        _redis_client.set(
+            f"service:{name}:error_rate",
+            str(result["error_rate"]) if result["error_rate"] is not None else "0",
+        )
+        _redis_client.set(f"service:{name}:last_check", result["timestamp"])
+    except redis.RedisError:
+        logger.warning("failed to write state to redis for service %s", name)
+
+
+def _write_incident_state_to_redis(incident: dict[str, Any]) -> None:
+    if _redis_client is None:
+        return
+    try:
+        _redis_client.set("incident:active", str(_detector.has_active).lower())
+        _redis_client.set("incident:latest", json.dumps(incident, default=str))
+    except redis.RedisError:
+        logger.warning("failed to write incident state to redis")
 
 
 async def _scrape_loop() -> None:
@@ -93,6 +127,18 @@ async def _scrape_loop() -> None:
                         _publisher.publish_health(result)
                 _publisher.flush()
 
+            for result in results:
+                if result is not None:
+                    _write_service_state_to_redis(result)
+
+            incidents = _detector.check(list(results))
+            for incident in incidents:
+                if _publisher is not None:
+                    _publisher.publish_incident(incident)
+                _write_incident_state_to_redis(incident)
+            if incidents and _publisher is not None:
+                _publisher.flush()
+
         except Exception:
             logger.exception("scrape loop iteration failed")
 
@@ -113,7 +159,7 @@ def _run_consumer() -> None:
 
 @app.on_event("startup")
 async def on_startup() -> None:
-    global _http_client, _publisher, _consumer_thread, _scraper_task
+    global _http_client, _publisher, _redis_client, _consumer_thread, _scraper_task
 
     logger.info("collector running")
 
@@ -125,6 +171,14 @@ async def on_startup() -> None:
     except Exception:
         logger.exception("failed to initialize kafka publisher — scraping will run but not publish")
         _publisher = None
+
+    try:
+        _redis_client = redis.from_url(REDIS_URL, decode_responses=True)
+        _redis_client.ping()
+        logger.info("redis client initialized: %s", REDIS_URL)
+    except Exception:
+        logger.warning("failed to connect to redis at %s — state will not be cached", REDIS_URL)
+        _redis_client = None
 
     _consumer_thread = threading.Thread(target=_run_consumer, daemon=True, name="metrics-consumer")
     _consumer_thread.start()
@@ -151,6 +205,9 @@ async def on_shutdown() -> None:
 
     if _consumer is not None:
         _consumer.close()
+
+    if _redis_client is not None:
+        _redis_client.close()
 
     if _http_client is not None:
         await _http_client.aclose()

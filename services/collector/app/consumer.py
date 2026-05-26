@@ -31,8 +31,8 @@ class MetricsConsumer:
         logger.info("reconnected to database")
 
     def run(self) -> None:
-        self._consumer.subscribe(["metrics.health"])
-        logger.info("consumer started, subscribed to metrics.health")
+        self._consumer.subscribe(["metrics.health", "metrics.incidents"])
+        logger.info("consumer started, subscribed to metrics.health, metrics.incidents")
 
         while self._running:
             msg = self._consumer.poll(timeout=1.0)
@@ -46,7 +46,11 @@ class MetricsConsumer:
 
             try:
                 data = json.loads(msg.value().decode("utf-8"))
-                self._insert_health_check(data)
+                topic = msg.topic()
+                if topic == "metrics.incidents":
+                    self._upsert_incident(data)
+                else:
+                    self._insert_health_check(data)
             except psycopg2.OperationalError:
                 logger.exception("database connection lost, reconnecting")
                 try:
@@ -76,6 +80,45 @@ class MetricsConsumer:
                     raw_json,
                 ),
             )
+
+    def _upsert_incident(self, data: dict[str, Any]) -> None:
+        details = data.get("details")
+        details_json = json.dumps(details) if details is not None else None
+        affected = data.get("affected_services")
+
+        if data.get("resolved_at") is not None:
+            with self._conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE incidents
+                    SET resolved_at = %s
+                    WHERE type = %s AND root_cause_service = %s AND resolved_at IS NULL
+                    """,
+                    (
+                        data["resolved_at"],
+                        data["type"],
+                        data.get("root_cause_service"),
+                    ),
+                )
+            logger.info("resolved incident: type=%s service=%s", data["type"], data.get("root_cause_service"))
+        else:
+            with self._conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO incidents
+                        (type, root_cause_service, affected_services, started_at, resolved_at, details)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        data["type"],
+                        data.get("root_cause_service"),
+                        affected,
+                        data["started_at"],
+                        None,
+                        details_json,
+                    ),
+                )
+            logger.info("inserted incident: type=%s service=%s", data["type"], data.get("root_cause_service"))
 
     def close(self) -> None:
         self._running = False

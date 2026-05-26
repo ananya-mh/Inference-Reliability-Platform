@@ -26,6 +26,9 @@ spec:
           env:
             - name: PORT
               value: "3000"
+          envFrom:
+            - configMapRef:
+                name: shared-config
           resources:
             requests:
               cpu: 100m

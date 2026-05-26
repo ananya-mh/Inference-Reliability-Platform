@@ -1,5 +1,8 @@
 import express, { Request, Response, NextFunction } from "express";
+import Redis from "ioredis";
+import { Pool } from "pg";
 import { metricsMiddleware, formatPrometheusMetrics } from "./metrics";
+import { createDashboardRouter } from "./dashboard";
 
 interface ApiEnvelope<T> {
   data: T | null;
@@ -23,6 +26,20 @@ function log(entry: Record<string, unknown>): void {
 
 const app = express();
 const PORT = parseInt(process.env["PORT"] ?? "3000", 10);
+const REDIS_URL = process.env["REDIS_URL"] ?? "redis://redis:6379";
+const DATABASE_URL =
+  process.env["DATABASE_URL"] ??
+  "postgresql://postgres:postgres@postgresql:5432/inference_platform";
+
+const redisClient = new Redis(REDIS_URL);
+redisClient.on("error", (err: Error) => {
+  log({ level: "error", message: "Redis connection error", error: err.message });
+});
+
+const pgPool = new Pool({ connectionString: DATABASE_URL });
+pgPool.on("error", (err: Error) => {
+  log({ level: "error", message: "PostgreSQL pool error", error: err.message });
+});
 
 app.use(metricsMiddleware);
 
@@ -40,6 +57,8 @@ app.get("/metrics", (_req: Request, res: Response) => {
   res.set("Content-Type", "text/plain; charset=utf-8");
   res.send(formatPrometheusMetrics());
 });
+
+app.use("/api", createDashboardRouter(redisClient, pgPool));
 
 app.use((_req: Request, res: Response) => {
   res.status(404).json(errorEnvelope("Not found"));

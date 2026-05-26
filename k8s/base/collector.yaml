@@ -29,6 +29,8 @@ spec:
           envFrom:
             - configMapRef:
                 name: collector-config
+            - configMapRef:
+                name: shared-config
           resources:
             requests:
               cpu: 200m
