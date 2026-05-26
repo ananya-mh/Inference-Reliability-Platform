@@ -20,20 +20,22 @@ spec:
     spec:
       containers:
         - name: collector
-          image: inference-reliability-platform-collector:latest
-          imagePullPolicy: Never
+          image: us-south1-docker.pkg.dev/ai-inference-497423/inference-repo/collector:latest
           ports:
             - containerPort: 8000
           env:
             - name: PORT
               value: "8000"
+          envFrom:
+            - configMapRef:
+                name: collector-config
           resources:
             requests:
-              cpu: 100m
-              memory: 128Mi
+              cpu: 200m
+              memory: 256Mi
             limits:
               cpu: 500m
-              memory: 256Mi
+              memory: 512Mi
           readinessProbe:
             httpGet:
               path: /health

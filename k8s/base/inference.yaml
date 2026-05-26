@@ -20,8 +20,7 @@ spec:
     spec:
       containers:
         - name: inference
-          image: inference-reliability-platform-inference:latest
-          imagePullPolicy: Never
+          image: us-south1-docker.pkg.dev/ai-inference-497423/inference-repo/inference:latest
           ports:
             - containerPort: 8080
           env:

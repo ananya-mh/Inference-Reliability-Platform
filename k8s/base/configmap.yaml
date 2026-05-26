@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: collector-config
+  labels:
+    app: collector
+    layer: "2"
+data:
+  GATEWAY_URL: "http://gateway:3000"
+  INFERENCE_URL: "http://inference:8080"
+  KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+  DATABASE_URL: "postgresql://postgres:postgres@postgresql:5432/inference_platform"

@@ -20,8 +20,7 @@ spec:
     spec:
       containers:
         - name: gateway
-          image: inference-reliability-platform-gateway:latest
-          imagePullPolicy: Never
+          image: us-south1-docker.pkg.dev/ai-inference-497423/inference-repo/gateway:latest
           ports:
             - containerPort: 3000
           env:

@@ -1,0 +1,47 @@
+# Minimal Kafka — single broker, KRaft mode, no auth
+controller:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+  persistence:
+    size: 1Gi
+
+# KRaft mode (no ZooKeeper needed)
+kraft:
+  enabled: true
+
+# Disable dedicated broker nodes — controller acts as both
+broker:
+  replicaCount: 0
+
+# Listeners
+listeners:
+  client:
+    protocol: PLAINTEXT
+  interbroker:
+    protocol: PLAINTEXT
+  controller:
+    protocol: PLAINTEXT
+
+# Provisioning — create topics on startup
+provisioning:
+  enabled: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  topics:
+    - name: metrics.health
+      partitions: 3
+      replicationFactor: 1
+    - name: metrics.incidents
+      partitions: 1
+      replicationFactor: 1
