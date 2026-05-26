@@ -1,53 +1,57 @@
 # Kubernetes Deployment
 
 ## Prerequisites
-- Minikube installed
-- kubectl installed
-- Docker images built locally (from Layer 0)
+- GKE Autopilot cluster running
+- kubectl connected (`gcloud container clusters get-credentials inference-cluster --region us-south1`)
+- Images pushed to Artifact Registry
+- Helm installed (for PostgreSQL)
 
 ## Deploy
 
 ```bash
-# Start Minikube
-minikube start
+# 1. Infrastructure
+helm install postgresql bitnami/postgresql -f k8s/postgresql/values.yaml
+kubectl apply -f k8s/kafka/kafka.yaml
+kubectl apply -f k8s/redis/redis.yaml
 
-# Point shell at Minikube's Docker daemon, then build images
-# PowerShell:
-minikube docker-env | Invoke-Expression
-# Bash:
-eval $(minikube docker-env)
+# 2. Wait for infra pods
+kubectl get pods -w   # wait until kafka-controller-0, postgresql-0, redis-0 are Running
 
-# Build images inside Minikube's Docker
-docker compose build
+# 3. Apply database schema
+kubectl exec -i postgresql-0 -- env PGPASSWORD=postgres \
+  psql -U postgres -d inference_platform < k8s/postgresql/schema.sql
 
-# Enable ingress addon
-minikube addons enable ingress
-
-# Deploy all manifests
+# 4. Deploy application
 kubectl apply -f k8s/base/
 
-# Watch pods come up
+# 5. Watch all pods come up
 kubectl get pods -w
 ```
 
 ## Verify
 
 ```bash
-# All pods should be Running with 0 restarts
+# All pods Running
 kubectl get pods
 
-# Check probe status
-kubectl describe pod <pod-name>
+# Port-forward and test
+kubectl port-forward svc/gateway 3000:3000
+curl http://localhost:3000/health
+curl http://localhost:3000/api/services/status
+curl http://localhost:3000/api/incidents/active
 
-# Test through ingress
-minikube tunnel   # run in a separate terminal on Windows
-curl http://localhost/api/health
-curl http://localhost/inference/health
+# Check health_checks populating
+kubectl exec -i postgresql-0 -- env PGPASSWORD=postgres \
+  psql -U postgres -d inference_platform \
+  -c "SELECT service_name, status, timestamp FROM health_checks ORDER BY timestamp DESC LIMIT 5;"
 ```
 
 ## Cleanup
 
 ```bash
 kubectl delete -f k8s/base/
-minikube stop
+kubectl delete -f k8s/kafka/kafka.yaml
+kubectl delete -f k8s/redis/redis.yaml
+helm uninstall postgresql
+kubectl delete pvc --all
 ```
