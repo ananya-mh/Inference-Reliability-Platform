@@ -184,8 +184,8 @@ docs/
 
 ## Build Layers
 
-| Layer | What | Status |
-|-------|------|--------|
+| Layer | What | 
+|-------|------|
 | 0 | Dockerized microservices with health endpoints |
 | 1 | Kubernetes deployment with probes and Ingress | 
 | 2 | Kafka + PostgreSQL metrics streaming pipeline | 
