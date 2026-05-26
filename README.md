@@ -186,12 +186,12 @@ docs/
 
 | Layer | What | Status |
 |-------|------|--------|
-| 0 | Dockerized microservices with health endpoints | Done |
-| 1 | Kubernetes deployment with probes and Ingress | Done |
-| 2 | Kafka + PostgreSQL metrics streaming pipeline | Done |
-| 3 | Redis live state + dashboard API | Done |
-| 4 | Incident detection + chaos testing | Done |
-| 5 | Cascading failure detection + LLM root-cause + HPA | Next |
+| 0 | Dockerized microservices with health endpoints |
+| 1 | Kubernetes deployment with probes and Ingress | 
+| 2 | Kafka + PostgreSQL metrics streaming pipeline | 
+| 3 | Redis live state + dashboard API | 
+| 4 | Incident detection + chaos testing |
+| 5 | Cascading failure detection + LLM root-cause + HPA | 
 
 ## Cleanup
 
